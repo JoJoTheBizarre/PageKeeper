@@ -1,0 +1,11 @@
+# macOS system files
+.DS_Store
+
+# Claude Code files
+.claude/
+.claude-code/
+*.claude
+
+# External libraries (should be downloaded by setup.sh)
+lib/turndown.min.js
+lib/jspdf.min.js
