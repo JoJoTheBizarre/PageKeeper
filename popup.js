@@ -25,14 +25,130 @@ const Storage = {
   }
 };
 
-// Toast notification
-function showToast(message) {
+
+// Enhanced toast notification with types
+function showToast(message, type = 'info') {
   const toast = document.getElementById('toast');
   toast.textContent = message;
+  toast.className = 'toast'; // Reset classes
+  toast.classList.add(type);
   toast.classList.add('show');
+
+  // Auto-hide after 3 seconds for success/info, 5 seconds for errors/warnings
+  const duration = type === 'error' || type === 'warning' ? 5000 : 3000;
+
   setTimeout(() => {
     toast.classList.remove('show');
-  }, 3000);
+  }, duration);
+}
+
+// Search helper
+const Search = {
+  filterPages(pages, query) {
+    if (!query || query.trim() === '') return pages;
+
+    const searchTerm = query.toLowerCase().trim();
+    return pages.filter(page => {
+      // Search in title, URL, and markdown content
+      return (
+        (page.title && page.title.toLowerCase().includes(searchTerm)) ||
+        (page.url && page.url.toLowerCase().includes(searchTerm)) ||
+        (page.markdown && page.markdown.toLowerCase().includes(searchTerm))
+      );
+    });
+  }
+};
+
+// Storage size helper
+const StorageSize = {
+  async getUsage() {
+    const pages = await Storage.getPages();
+    const json = JSON.stringify(pages);
+    const bytes = new TextEncoder().encode(json).length; // Accurate byte count
+    const maxBytes = 10 * 1024 * 1024; // 10 MB
+    return {
+      used: bytes,
+      max: maxBytes,
+      percentage: Math.min(100, (bytes / maxBytes) * 100)
+    };
+  },
+
+  formatBytes(bytes) {
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+    return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+  },
+
+  async updateBar() {
+    const usage = await this.getUsage();
+    const fill = document.querySelector('.storage-fill');
+    const text = document.querySelector('.storage-text');
+    if (!fill || !text) return;
+
+    fill.style.width = usage.percentage + '%';
+    text.textContent = this.formatBytes(usage.used) + ' / ' + this.formatBytes(usage.max);
+  }
+};
+
+// Search state
+let currentSearchQuery = '';
+
+// Initialize search functionality
+function initSearch() {
+  const searchInput = document.getElementById('searchInput');
+  const searchClear = document.getElementById('searchClear');
+
+  if (!searchInput || !searchClear) return;
+
+  // Load saved search query
+  chrome.storage.local.get(['searchQuery'], (result) => {
+    if (result.searchQuery) {
+      currentSearchQuery = result.searchQuery;
+      searchInput.value = currentSearchQuery;
+      if (currentSearchQuery) {
+        searchClear.classList.add('visible');
+      }
+    }
+  });
+
+  // Search input event
+  searchInput.addEventListener('input', (e) => {
+    currentSearchQuery = e.target.value.trim();
+
+    // Show/hide clear button
+    if (currentSearchQuery) {
+      searchClear.classList.add('visible');
+    } else {
+      searchClear.classList.remove('visible');
+    }
+
+    // Save search query
+    chrome.storage.local.set({ searchQuery: currentSearchQuery });
+
+    // Debounce the search to avoid too many renders
+    clearTimeout(searchInput.debounceTimer);
+    searchInput.debounceTimer = setTimeout(() => {
+      renderPages(currentSearchQuery);
+    }, 300);
+  });
+
+  // Clear search button
+  searchClear.addEventListener('click', () => {
+    searchInput.value = '';
+    currentSearchQuery = '';
+    searchClear.classList.remove('visible');
+    chrome.storage.local.set({ searchQuery: '' });
+    renderPages('');
+  });
+
+  // Focus search on Ctrl+F
+  document.addEventListener('keydown', (e) => {
+    if ((e.ctrlKey || e.metaKey) && e.key === 'f') {
+      e.preventDefault();
+      searchInput.focus();
+      searchInput.select();
+    }
+  });
 }
 
 // Format date
@@ -56,33 +172,55 @@ function formatDate(timestamp) {
   });
 }
 
-// Render pages list
-async function renderPages() {
+// Render pages list with optional search filtering
+async function renderPages(searchQuery = '') {
   const container = document.getElementById('listContainer');
   const loading = document.getElementById('loading');
   const pageCount = document.getElementById('pageCount');
 
   loading.style.display = 'block';
 
-  const pages = await Storage.getPages();
-  
-  loading.style.display = 'none';
-  pageCount.textContent = `${pages.length} page${pages.length !== 1 ? 's' : ''} saved`;
+  const allPages = await Storage.getPages();
+  const filteredPages = Search.filterPages(allPages, searchQuery);
 
-  if (pages.length === 0) {
-    container.innerHTML = `
-      <div class="empty-state">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
-        </svg>
-        <h3>No pages saved yet</h3>
-        <p>Click "Scrape Current Page" to get started</p>
-      </div>
-    `;
+  loading.style.display = 'none';
+  await StorageSize.updateBar();
+
+  // Update page count with filtering info
+  if (searchQuery && filteredPages.length !== allPages.length) {
+    pageCount.textContent = `${filteredPages.length} of ${allPages.length} pages (filtered)`;
+  } else {
+    pageCount.textContent = `${allPages.length} page${allPages.length !== 1 ? 's' : ''} saved`;
+  }
+
+  if (filteredPages.length === 0) {
+    if (allPages.length === 0) {
+      // No pages at all
+      container.innerHTML = `
+        <div class="empty-state">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+          </svg>
+          <h3>No pages saved yet</h3>
+          <p>Click "Scrape Current Page" to get started</p>
+        </div>
+      `;
+    } else {
+      // Pages exist but none match search
+      container.innerHTML = `
+        <div class="empty-state">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M9.172 16.242L12 13.414l2.828 2.828 1.414-1.414L13.414 12l2.828-2.828-1.414-1.414L12 10.586 9.172 7.758 7.758 9.172 10.586 12l-2.828 2.828zM12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z"/>
+          </svg>
+          <h3>No pages match your search</h3>
+          <p>Try a different search term or clear the search</p>
+        </div>
+      `;
+    }
     return;
   }
 
-  container.innerHTML = pages.map(page => `
+  container.innerHTML = filteredPages.map(page => `
     <div class="page-item" data-id="${page.id}">
       <div class="page-header">
         <div class="page-info">
@@ -91,15 +229,12 @@ async function renderPages() {
         </div>
         <div class="page-date">${formatDate(page.timestamp)}</div>
       </div>
-      
+
       <div class="page-content">
         <div class="page-preview">${escapeHtml(truncateText(page.markdown, 500))}</div>
         <div class="export-buttons">
           <button class="btn-small btn-export export-md" data-id="${page.id}">
             📝 Export MD
-          </button>
-          <button class="btn-small btn-export export-pdf" data-id="${page.id}">
-            📄 Export PDF
           </button>
           <button class="btn-small btn-delete delete-page" data-id="${page.id}">
             🗑️ Delete
@@ -126,15 +261,6 @@ async function renderPages() {
     });
   });
 
-  // Export PDF handlers
-  document.querySelectorAll('.export-pdf').forEach(btn => {
-    btn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      const id = btn.dataset.id;
-      exportAsPDF(id);
-    });
-  });
-
   // Delete handlers
   document.querySelectorAll('.delete-page').forEach(btn => {
     btn.addEventListener('click', async (e) => {
@@ -142,8 +268,9 @@ async function renderPages() {
       const id = btn.dataset.id;
       if (confirm('Delete this page?')) {
         await Storage.deletePage(id);
-        showToast('Page deleted');
-        renderPages();
+        await StorageSize.updateBar();
+        showToast('Page deleted', 'success');
+        renderPages(currentSearchQuery);
       }
     });
   });
@@ -167,156 +294,104 @@ ${page.markdown}
 `;
 
   downloadFile(content, `${sanitizeFilename(page.title)}.md`, 'text/markdown');
-  showToast('Exported as Markdown');
-}
-
-// Export as PDF
-async function exportAsPDF(id) {
-  const pages = await Storage.getPages();
-  const page = pages.find(p => p.id === id);
-  
-  if (!page) return;
-
-  // Check if jsPDF is available
-  if (typeof window.jspdf === 'undefined') {
-    showToast('PDF export not available');
-    return;
-  }
-
-  const { jsPDF } = window.jspdf;
-  const doc = new jsPDF();
-
-  const pageWidth = doc.internal.pageSize.getWidth();
-  const margin = 20;
-  const maxWidth = pageWidth - (margin * 2);
-  let yPosition = margin;
-
-  // Title
-  doc.setFontSize(18);
-  doc.setFont(undefined, 'bold');
-  const titleLines = doc.splitTextToSize(page.title, maxWidth);
-  doc.text(titleLines, margin, yPosition);
-  yPosition += titleLines.length * 8 + 5;
-
-  // URL
-  doc.setFontSize(10);
-  doc.setFont(undefined, 'normal');
-  doc.setTextColor(100, 100, 255);
-  const urlLines = doc.splitTextToSize(page.url, maxWidth);
-  doc.text(urlLines, margin, yPosition);
-  yPosition += urlLines.length * 5 + 3;
-
-  // Date
-  doc.setTextColor(128, 128, 128);
-  doc.text(`Scraped: ${new Date(page.timestamp).toLocaleString()}`, margin, yPosition);
-  yPosition += 10;
-
-  // Line separator
-  doc.setDrawColor(200, 200, 200);
-  doc.line(margin, yPosition, pageWidth - margin, yPosition);
-  yPosition += 10;
-
-  // Content
-  doc.setTextColor(0, 0, 0);
-  doc.setFontSize(11);
-  
-  const contentLines = doc.splitTextToSize(page.markdown, maxWidth);
-  const lineHeight = 6;
-  const pageHeight = doc.internal.pageSize.getHeight();
-
-  contentLines.forEach(line => {
-    if (yPosition + lineHeight > pageHeight - margin) {
-      doc.addPage();
-      yPosition = margin;
-    }
-    doc.text(line, margin, yPosition);
-    yPosition += lineHeight;
-  });
-
-  doc.save(`${sanitizeFilename(page.title)}.pdf`);
-  showToast('Exported as PDF');
+  showToast('Exported as Markdown', 'success');
 }
 
 // Scrape current page
 async function scrapePage() {
-  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  const scrapeBtn = document.getElementById('scrapeBtn');
+  const listContainer = document.getElementById('listContainer');
 
-  if (!tab.url || tab.url.startsWith('chrome://') || tab.url.startsWith('chrome-extension://')) {
-    showToast('Cannot scrape this page');
-    return;
-  }
+  // Set loading state
+  scrapeBtn.disabled = true;
+  scrapeBtn.classList.add('btn-loading');
 
   try {
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+
+    if (!tab.url || tab.url.startsWith('chrome://') || tab.url.startsWith('chrome-extension://')) {
+      showToast('Cannot scrape this page', 'error');
+      return;
+    }
+
     const [result] = await chrome.scripting.executeScript({
       target: { tabId: tab.id },
       function: scrapePageContent
     });
 
     if (!result || !result.result) {
-      showToast('Failed to scrape page');
+      showToast('Failed to scrape page', 'error');
       return;
+    }
+
+    // Convert HTML to Markdown using Turndown
+    let markdown = '';
+    try {
+      const turndownService = new TurndownService();
+      markdown = turndownService.turndown(result.result.html);
+    } catch (error) {
+      console.error('Turndown conversion error:', error);
+      // Fallback to empty markdown
+      markdown = '[Conversion failed]';
     }
 
     const page = {
       id: Date.now().toString(),
       timestamp: Date.now(),
-      ...result.result
+      url: result.result.url,
+      title: result.result.title,
+      markdown: markdown.trim()
     };
 
     await Storage.savePage(page);
-    showToast('✓ Page scraped successfully!');
-    renderPages();
+    await StorageSize.updateBar();
+    showToast('Page scraped successfully!', 'success');
+
+    // Refresh list and scroll to top to show new page
+    await renderPages(currentSearchQuery);
+    listContainer.scrollTop = 0;
+
+    // Highlight the newly added page
+    const newPageElement = listContainer.querySelector(`[data-id="${page.id}"]`);
+    if (newPageElement) {
+      newPageElement.classList.add('highlighted');
+      // Remove highlight after animation completes
+      setTimeout(() => {
+        newPageElement.classList.remove('highlighted');
+      }, 2000);
+    }
   } catch (error) {
     console.error('Scrape error:', error);
-    showToast('Error scraping page');
+    showToast('Error scraping page', 'error');
+  } finally {
+    // Restore button state
+    scrapeBtn.disabled = false;
+    scrapeBtn.classList.remove('btn-loading');
   }
 }
 
 // This function runs in the context of the web page
 function scrapePageContent() {
-  // Get or initialize Turndown
-  let turndownService;
-  if (typeof TurndownService !== 'undefined') {
-    turndownService = new TurndownService({
-      headingStyle: 'atx',
-      codeBlockStyle: 'fenced'
-    });
-  } else {
-    // Fallback to simple text extraction
-    turndownService = {
-      turndown: (html) => {
-        const temp = document.createElement('div');
-        temp.innerHTML = html;
-        return temp.textContent || temp.innerText || '';
-      }
-    };
-  }
 
   // Get main content (try to get article/main content)
-  let content = document.body;
+  let content = document.querySelector('main') ||
+                document.querySelector('article') ||
+                document.querySelector('[role="main"]') ||
+                document.querySelector('.main-content') ||
+                document.querySelector('#content') ||
+                document.body;
   
-  // Try to find main content area
-  const mainContent = document.querySelector('main') ||
-                     document.querySelector('article') ||
-                     document.querySelector('[role="main"]') ||
-                     document.querySelector('.main-content') ||
-                     document.querySelector('#content');
-  
-  if (mainContent) {
-    content = mainContent;
-  }
-
   // Remove unwanted elements
   const clone = content.cloneNode(true);
-  const unwanted = clone.querySelectorAll('script, style, nav, header, footer, iframe, .ad, .advertisement');
+  const unwanted = clone.querySelectorAll('script, style, nav, header, footer, iframe, .ad, .advertisement, .sidebar, .menu, .navigation');
   unwanted.forEach(el => el.remove());
 
-  const markdown = turndownService.turndown(clone.innerHTML);
+  const html = clone.innerHTML;
 
   return {
     url: window.location.href,
     title: document.title || 'Untitled Page',
-    markdown: markdown
+    html: html
   };
 }
 
@@ -355,10 +430,18 @@ document.getElementById('scrapeBtn').addEventListener('click', scrapePage);
 document.getElementById('clearAllBtn').addEventListener('click', async () => {
   if (confirm('Delete all saved pages?')) {
     await Storage.clearAll();
-    showToast('All pages cleared');
-    renderPages();
+    await StorageSize.updateBar();
+    showToast('All pages cleared', 'success');
+    renderPages(currentSearchQuery);
   }
 });
 
-// Initialize
-renderPages();
+document.getElementById('resizeBtn').addEventListener('click', () => {
+  document.body.classList.toggle('window-large');
+  const isLarge = document.body.classList.contains('window-large');
+  showToast(`Window ${isLarge ? 'enlarged' : 'restored'}`, 'info');
+});
+
+// Initialize search and render pages
+initSearch();
+renderPages(currentSearchQuery);
