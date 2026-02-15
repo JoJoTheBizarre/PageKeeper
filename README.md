@@ -1,93 +1,40 @@
-# 📚 PageKeeper Chrome Extension
+<div align="center">
+  <img src="project_logo.png" width="200">
+</div>
 
-Save web pages and export them as Markdown or PDF.
+# PageKeeper
 
-## ⚡ Quick Install
+A Chrome extension that saves web pages as Markdown or PDF. All data stays in your browser—nothing is sent to external servers.
 
-### For Chrome/Edge/Brave
+## Quick Setup
 
-1. **Download** the latest release zip file
-2. **Extract** the zip file to any folder
-3. **Open Chrome** and go to `chrome://extensions/`
-4. **Enable** "Developer mode" (toggle in top right)
-5. **Click** "Load unpacked"
-6. **Select** the extracted `PageKeeper` folder
-7. **Done!** Click the PageKeeper icon in your toolbar
+1. **Download** or clone this repository
+2. **Open Chrome** and go to `chrome://extensions/`
+3. **Enable** "Developer mode" (toggle in top right)
+4. **Click** "Load unpacked"
+5. **Select** the `PageKeeper` folder
+6. **Pin** the extension from the toolbar puzzle piece menu
 
-### Pin the Extension (Recommended)
+## How It Works
 
-- Click the puzzle piece icon in Chrome toolbar
-- Find PageKeeper and click the pin icon
-- Now it's always visible!
+- **Scrape**: Click the PageKeeper icon on any webpage, then "Scrape Current Page"
+- **View**: All saved pages appear in the popup with dates and previews
+- **Export**: Expand any page to export as Markdown (`.md`) or PDF
+- **Delete**: Remove individual pages or clear all with one click
 
-## 🚀 How to Use
+## Where Data Is Saved
 
-### Save a Page
-1. Visit any webpage
-2. Click the PageKeeper icon (📚)
-3. Click "Scrape Current Page"
-4. Done! The page is saved
+Pages are stored locally using Chrome's `storage.local` API (up to 10 MB per extension). This means:
 
-### View Saved Pages
-- Click the PageKeeper icon
-- See all your saved pages with dates
-- Click any page to expand and preview
+- Your content never leaves your computer
+- No cloud sync or external servers involved
+- Data persists across browser restarts
+- You can clear it anytime from the extension
 
-### Export Pages
-- Click on a saved page to expand it
-- Click "📝 Export MD" for Markdown file
-- Click "📄 Export PDF" to print/save as PDF
+## Privacy
 
-### Delete Pages
-- Expand a page → Click "🗑️ Delete"
-- Or click "🗑️ Clear All" to delete everything
-
-## 📝 What Gets Saved
-
-When you scrape a page, PageKeeper saves:
-- Page title
-- URL
-- Full content (converted to Markdown)
-- Date and time scraped
-
-Exports include all of the above in a nicely formatted file.
-
-## 💡 Tips
-
-**Works best on:**
-- News articles
-- Blog posts
-- Documentation
-- Wikipedia pages
-- Tutorial sites
-
-**Won't work on:**
-- Chrome internal pages (`chrome://...`)
-- Some banking/secure sites
-- Dynamic web apps (Gmail, Slack)
-
-## 🔒 Privacy
-
-- All data stored locally in your browser
+PageKeeper is completely private:
 - No tracking or analytics
-- No external servers
 - No data collection
-- Your content stays 100% private
-
-## 🐛 Troubleshooting
-
-**Extension won't load?**
-- Make sure Developer mode is ON
-- Check you selected the right folder
-- Look for errors at `chrome://extensions/`
-
-**Scraping doesn't work?**
-- Can't scrape `chrome://` pages
-- Try on a news article or Wikipedia
-
-## 📊 Storage
-
-- Uses Chrome's local storage
-- ~5MB limit (thousands of pages)
-- Can be cleared anytime
-- No cloud sync (keeps it private)
+- No network requests for your content
+- All processing happens locally
