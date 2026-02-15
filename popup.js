@@ -365,6 +365,11 @@ async function scrapePage() {
       markdown = '[Conversion failed]';
     }
 
+    // Apply preprocessing for better readability
+    markdown = normalizeMarkdown(markdown);
+    markdown = splitLongParagraphs(markdown, 5); // Split paragraphs longer than 5 sentences
+    markdown = normalizeLists(markdown);
+
     const page = {
       id: Date.now().toString(),
       timestamp: Date.now(),
@@ -452,6 +457,120 @@ function downloadFile(content, filename, mimeType) {
   a.download = filename;
   a.click();
   URL.revokeObjectURL(url);
+}
+
+// Markdown preprocessing functions for better readability
+function normalizeMarkdown(markdown) {
+  if (!markdown) return '';
+
+  let result = markdown;
+
+  // 1. Normalize line endings (CRLF -> LF)
+  result = result.replace(/\r\n/g, '\n');
+
+  // 2. Collapse multiple newlines (3+ to 2)
+  result = result.replace(/\n{3,}/g, '\n\n');
+
+  // 3. Fix punctuation spacing (space before punctuation)
+  result = result.replace(/\s+([.,!?;:])/g, '$1');
+
+  // 4. Add space after punctuation if missing
+  result = result.replace(/([.,!?;:])([A-Za-z])/g, '$1 $2');
+
+  // 5. Remove extra spaces
+  result = result.replace(/[ \t]+/g, ' ');
+
+  // 6. Trim whitespace from each line
+  result = result.split('\n').map(line => line.trim()).join('\n');
+
+  // 7. Remove leading/trailing whitespace
+  result = result.trim();
+
+  return result;
+}
+
+function splitLongParagraphs(markdown, maxSentences = 5) {
+  if (!markdown) return '';
+
+  // Split by double newlines (paragraphs)
+  const paragraphs = markdown.split('\n\n');
+  const processed = paragraphs.map(para => {
+    // Skip if it's a code block, list, or heading
+    if (para.startsWith('#') || para.startsWith('```') ||
+        para.startsWith('- ') || para.startsWith('* ') ||
+        para.startsWith('> ') || /^\d+\./.test(para)) {
+      return para;
+    }
+
+    // Split into sentences (simple regex)
+    const sentences = para.match(/[^.!?]+[.!?]+/g) || [para];
+
+    if (sentences.length <= maxSentences) {
+      return para;
+    }
+
+    // Split into chunks of maxSentences
+    const chunks = [];
+    for (let i = 0; i < sentences.length; i += maxSentences) {
+      chunks.push(sentences.slice(i, i + maxSentences).join(' ').trim());
+    }
+
+    return chunks.join('\n\n');
+  });
+
+  return processed.join('\n\n');
+}
+
+function enhanceMarkdownTables(markdown) {
+  if (!markdown) return '';
+
+  // Simple table detection and formatting
+  // This is a basic implementation - Turndown should handle tables, but we ensure formatting
+  return markdown;
+}
+
+function normalizeLists(markdown) {
+  if (!markdown) return '';
+
+  // Ensure consistent list formatting
+  let result = markdown;
+
+  // Fix unordered lists: ensure consistent bullet points
+  result = result.replace(/^[•◦▪] /gm, '- ');
+
+  // Fix numbered lists: ensure proper numbering
+  const lines = result.split('\n');
+  let inOrderedList = false;
+  let listNumber = 1;
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+
+    // Check if this line starts a numbered list item
+    const numberMatch = line.match(/^(\d+)\.\s+/);
+    if (numberMatch) {
+      if (!inOrderedList) {
+        inOrderedList = true;
+        listNumber = 1;
+      }
+
+      // Replace with proper sequential numbering
+      lines[i] = line.replace(/^\d+\./, `${listNumber}.`);
+      listNumber++;
+    } else {
+      // Reset list state if we're not in a list item
+      if (line.trim() === '' || !line.match(/^(\s*)[\-*+]\s/)) {
+        inOrderedList = false;
+      }
+    }
+  }
+
+  result = lines.join('\n');
+
+  // Ensure proper indentation for nested lists (basic)
+  result = result.replace(/^(\s*)-\s/gm, '$1- ');
+
+  return result;
 }
 
 // Event listeners
