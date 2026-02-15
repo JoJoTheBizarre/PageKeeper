@@ -36,6 +36,10 @@
       --btn-delete-hover: rgba(211, 47, 47, 0.15);
       --btn-delete-border: #d32f2f;
       --btn-delete-text: #d32f2f;
+      --btn-copy-bg: transparent;
+      --btn-copy-hover: rgba(33, 150, 243, 0.15);
+      --btn-copy-border: #2196F3;
+      --btn-copy-text: #2196F3;
       --preview-bg: #222222;
       --toast-bg: #333333;
       --toast-text: #ffffff;
@@ -433,6 +437,17 @@
 
     .btn-delete:hover {
       background: var(--btn-delete-hover);
+    }
+
+    .btn-copy {
+      background: var(--btn-copy-bg);
+      color: var(--btn-copy-text);
+      border: 1px solid var(--btn-copy-border);
+      border-radius: 4px;
+    }
+
+    .btn-copy:hover {
+      background: var(--btn-copy-hover);
     }
 
     .list-container::-webkit-scrollbar {

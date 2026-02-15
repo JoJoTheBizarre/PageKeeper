@@ -236,6 +236,9 @@ async function renderPages(searchQuery = '') {
           <button class="btn-small btn-export export-md" data-id="${page.id}">
             📝 Export MD
           </button>
+          <button class="btn-small btn-copy copy-page" data-id="${page.id}">
+            📋 Copy
+          </button>
           <button class="btn-small btn-delete delete-page" data-id="${page.id}">
             🗑️ Delete
           </button>
@@ -258,6 +261,15 @@ async function renderPages(searchQuery = '') {
       e.stopPropagation();
       const id = btn.dataset.id;
       exportAsMarkdown(id);
+    });
+  });
+
+  // Copy handlers
+  document.querySelectorAll('.copy-page').forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      const id = btn.dataset.id;
+      await copyToClipboard(id);
     });
   });
 
@@ -295,6 +307,24 @@ ${page.markdown}
 
   downloadFile(content, `${sanitizeFilename(page.title)}.md`, 'text/markdown');
   showToast('Exported as Markdown', 'success');
+}
+
+// Copy to clipboard
+async function copyToClipboard(id) {
+  const pages = await Storage.getPages();
+  const page = pages.find(p => p.id === id);
+
+  if (!page) return;
+
+  const content = '# ' + page.title + '\n\n**URL:** ' + page.url + '  \n**Scraped:** ' + new Date(page.timestamp).toLocaleString() + '\n\n---\n\n' + page.markdown;
+
+  try {
+    await navigator.clipboard.writeText(content);
+    showToast('Copied to clipboard', 'success');
+  } catch (error) {
+    console.error('Copy failed:', error);
+    showToast('Copy failed', 'error');
+  }
 }
 
 // Scrape current page
